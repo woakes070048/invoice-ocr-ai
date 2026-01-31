@@ -5,3 +5,14 @@
 tags
 node_modules
 __pycache__
+
+# Env / secrets
+.env
+site_config.json
+
+# Logs
+*.log
+
+# Build
+dist/
+build/

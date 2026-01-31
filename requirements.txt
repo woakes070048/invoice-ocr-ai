@@ -1,0 +1,21 @@
+# =========================================================
+# Invoice OCR – AI Dependencies
+# Compatible with Frappe Cloud & ERPNext
+# =========================================================
+
+# HTTP requests (used in OCR engine)
+requests>=2.28.0
+
+# LangChain + OpenAI (Agentic OCR)
+langchain>=0.1.0
+langchain-openai>=0.0.8
+langgraph>=0.0.40
+
+# Data validation & typing
+typing-extensions>=4.5.0
+
+# Image / file handling
+Pillow>=9.5.0
+
+# Optional but recommended (date parsing safety)
+python-dateutil>=2.8.2

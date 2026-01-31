@@ -1,0 +1,76 @@
+frappe.ui.form.on("Invoice OCR", {
+    refresh(frm) {
+
+        frm.clear_custom_buttons();
+        frm.page.clear_primary_action();
+
+        // ---------------- OCR CONFIDENCE ----------------
+        if (frm.doc.confidence !== undefined) {
+            let color =
+                frm.doc.confidence >= 70 ? "green" :
+                frm.doc.confidence >= 40 ? "orange" : "red";
+
+            frm.dashboard.set_headline(
+                `<span class="indicator ${color}">
+                    OCR Confidence: ${frm.doc.confidence}%
+                 </span>`
+            );
+        }
+
+        // ---------------- RUN OCR ----------------
+        if (
+            frm.doc.invoice_file &&
+            frm.doc.status === "Draft"
+        ) {
+            frm.add_custom_button("▶ Run OCR", () => {
+                frm.call({
+                    method: "invoice_ocr.api.run_ocr",
+                    args: { docname: frm.doc.name },
+                    freeze: true,
+                    freeze_message: "Running OCR..."
+                }).then(() => frm.reload_doc());
+            }).addClass("btn-primary");
+        }
+
+        // ---------------- RESET OCR ----------------
+        if (frm.doc.status !== "Draft") {
+            frm.add_custom_button("🔄 Reset OCR", () => {
+                frm.call({
+                    method: "invoice_ocr.api.reset_ocr",
+                    args: { docname: frm.doc.name },
+                    freeze: true
+                }).then(() => frm.reload_doc());
+            });
+        }
+
+        // ---------------- GENERATE PURCHASE INVOICE ----------------
+        if (
+            frm.doc.status === "Ready" &&
+            frm.doc.items &&
+            frm.doc.items.length > 0 &&
+            !frm.doc.purchase_invoice
+        ) {
+            frm.add_custom_button("🧾 Generate Purchase Invoice", () => {
+                frm.call({
+                    method: "invoice_ocr.api.create_purchase_invoice",
+                    args: { docname: frm.doc.name },
+                    freeze: true,
+                    freeze_message: "Creating Purchase Invoice..."
+                }).then(r => {
+                    frappe.show_alert({
+                        message: "Purchase Invoice Created",
+                        indicator: "green"
+                    });
+                    frm.reload_doc();
+                });
+            }).addClass("btn-success");
+        }
+
+        // ---------------- OPEN PURCHASE INVOICE ----------------
+        if (frm.doc.purchase_invoice) {
+            frm.add_custom_button("📄 View Purchase Invoice", () => {
+                frappe.set_route("Form", "Purchase Invoice", frm.doc.purchase_invoice);
+            });
+        }
+    }
+});

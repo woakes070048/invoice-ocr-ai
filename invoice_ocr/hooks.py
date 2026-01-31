@@ -1,9 +1,17 @@
+
 app_name = "invoice_ocr"
-app_title = "Invoice Ocr"
-app_publisher = "zikpro"
-app_description = "ai ocr agent"
-app_email = "arshikhan229@gmail.com"
-app_license = "mit"
+app_title = "OCR-AI"
+app_publisher = "Zikpro Ltd"
+app_description = "AI-based Invoice OCR to Purchase Invoice automation"
+app_email = "info@zikpro.com"
+app_license = "Commercial"
+
+
+
+doctype_js = {
+    "Sales Invoice": "public/js/sales_invoice.js",
+    "Invoice OCR": "public/js/invoice_ocr.js"
+}
 
 # Apps
 # ------------------
@@ -15,7 +23,7 @@ app_license = "mit"
 # 	{
 # 		"name": "invoice_ocr",
 # 		"logo": "/assets/invoice_ocr/logo.png",
-# 		"title": "Invoice Ocr",
+# 		"title": "OCR-AI,
 # 		"route": "/invoice_ocr",
 # 		"has_permission": "invoice_ocr.api.permission.has_app_permission"
 # 	}
