@@ -1,19 +1,28 @@
 import json
 import frappe
 from langchain_openai import ChatOpenAI
-from .prompts import HEADER_PROMPT, ITEMS_PROMPT, TAX_PROMPT
-from .confidence import calculate_confidence
+
+from invoice_ocr.ai.prompts import HEADER_PROMPT, ITEMS_PROMPT, TAX_PROMPT
+from invoice_ocr.ai.confidence import calculate_confidence
+
 
 
 # ============================================================
-# LLM (Frappe-safe)
+# LLM (FRAPPE CLOUD SAFE)
 # ============================================================
 
 def get_llm():
+    api_key = frappe.conf.get("OPENAI_API_KEY")
+
+    if not api_key:
+        frappe.throw("OPENAI_API_KEY not configured in Frappe Cloud")
+
     return ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0,
-        api_key=frappe.conf.get("openai_api_key")
+        api_key=api_key,
+        timeout=60,
+        max_retries=2
     )
 
 
@@ -34,6 +43,10 @@ def _safe_json(content, default):
 # ============================================================
 
 def extract_header(state: dict):
+    if not state.get("ocr_text"):
+        state["header"] = {}
+        return state
+
     llm = get_llm()
 
     response = llm.invoke(
@@ -45,6 +58,10 @@ def extract_header(state: dict):
 
 
 def extract_items(state: dict):
+    if not state.get("ocr_text"):
+        state["items"] = []
+        return state
+
     llm = get_llm()
 
     response = llm.invoke(
@@ -56,6 +73,10 @@ def extract_items(state: dict):
 
 
 def extract_taxes(state: dict):
+    if not state.get("ocr_text"):
+        state["taxes"] = []
+        return state
+
     llm = get_llm()
 
     response = llm.invoke(
@@ -72,7 +93,7 @@ def score_confidence(state: dict):
     except Exception:
         frappe.log_error(
             frappe.get_traceback(),
-            "OCR Confidence Calculation Error"
+            "Invoice OCR – Confidence Calculation Error"
         )
         state["confidence"] = 0
 

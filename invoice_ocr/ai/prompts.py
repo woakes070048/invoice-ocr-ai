@@ -22,25 +22,25 @@ Return JSON exactly in this format:
 
 
 ITEMS_PROMPT = """
-You are extracting invoice LINE ITEMS from OCR text.
+You are extracting invoice line items from an ACCOUNTING invoice.
 
 Rules:
+- Ledger or account names are valid item_name
+- Quantity may be missing → default qty = 1
+- Rate may appear as unit price or final amount
 - Do NOT invent items
-- If quantity missing, default qty = 1
-- rate must be numeric
-- description may be null
-- Match ERPNext Purchase Invoice Item structure
+- Extract ONE item per ledger line
 
 Return JSON exactly in this format:
 [
   {
     "item_name": null,
-    "description": null,
     "qty": 1,
     "rate": 0
   }
 ]
 """
+
 
 
 TAX_PROMPT = """

@@ -3,49 +3,49 @@ import base64
 import mimetypes
 import requests
 import frappe
-from frappe import _
 
 # ============================================================
-# CONFIG
+# CONFIG – DeepSeek OCR via DeepInfra
 # ============================================================
 
-DEEPSEEK_API_URL = "https://api.deepinfra.com/v1/openai/chat/completions"
+DEEPINFRA_API_URL = "https://api.deepinfra.com/v1/openai/chat/completions"
 DEEPSEEK_MODEL = "deepseek-ai/DeepSeek-OCR"
 
+
 # ============================================================
-# HELPERS (⚠️ MUST BE ABOVE run_vision_ocr)
+# HELPERS
 # ============================================================
 
-def _detect_mime_type(file_url: str) -> str:
-    mime_type, _ = mimetypes.guess_type(file_url)
-    return mime_type or "image/png"
+def _detect_mime_type(file_path: str) -> str:
+    mime, _ = mimetypes.guess_type(file_path)
+    return mime or "image/png"
 
 
-def _encode_file_to_base64(file_url: str) -> str:
-    if not file_url:
-        frappe.throw(_("No file provided for OCR"))
+def _encode_file_to_base64(file_path: str) -> str:
+    if not os.path.exists(file_path):
+        frappe.throw(f"File not found: {file_path}")
 
-    file_url = file_url.lstrip("/")
-    absolute_path = frappe.get_site_path(file_url)
-
-    if not os.path.exists(absolute_path):
-        frappe.throw(_("File not found at {0}").format(absolute_path))
-
-    with open(absolute_path, "rb") as f:
+    with open(file_path, "rb") as f:
         return base64.b64encode(f.read()).decode("utf-8")
 
+
 # ============================================================
-# MAIN OCR FUNCTION
+# MAIN VISION OCR FUNCTION
 # ============================================================
 
 def run_vision_ocr(file_url: str) -> str:
-    api_key = frappe.conf.get("deepseek_api_key")
+    """
+    Run DeepSeek OCR (Vision only).
+    Returns raw OCR text.
+    """
 
+    api_key = frappe.conf.get("DEEPINFRA_API_KEY")
     if not api_key:
-        frappe.throw(_("DeepSeek API key not found in site_config.json"))
+        frappe.throw("DEEPINFRA_API_KEY not configured")
 
-    mime_type = _detect_mime_type(file_url)
-    encoded_file = _encode_file_to_base64(file_url)
+    file_path = frappe.get_site_path(file_url.lstrip("/"))
+    mime_type = _detect_mime_type(file_path)
+    encoded_file = _encode_file_to_base64(file_path)
 
     payload = {
         "model": DEEPSEEK_MODEL,
@@ -62,7 +62,7 @@ def run_vision_ocr(file_url: str) -> str:
                 ]
             }
         ],
-        "temperature": 0.0
+        "temperature": 0
     }
 
     headers = {
@@ -71,23 +71,26 @@ def run_vision_ocr(file_url: str) -> str:
     }
 
     try:
-        response = requests.post(
-            DEEPSEEK_API_URL,
+        res = requests.post(
+            DEEPINFRA_API_URL,
             json=payload,
             headers=headers,
             timeout=120
         )
-        response.raise_for_status()
+        res.raise_for_status()
 
-        data = response.json()
+        data = res.json()
         content = data["choices"][0]["message"]["content"]
 
-        # DeepInfra sometimes returns list
         if isinstance(content, list):
             return " ".join(c.get("text", "") for c in content)
 
         return content.strip()
 
     except Exception:
-        frappe.log_error(frappe.get_traceback(), "Invoice OCR – DeepSeek Error")
-        frappe.throw(_("Failed to process OCR request"))
+        frappe.log_error(
+            frappe.get_traceback(),
+            "Invoice OCR – Vision OCR Error"
+        )
+        frappe.throw("Vision OCR failed")
+
