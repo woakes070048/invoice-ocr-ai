@@ -1,32 +1,39 @@
-import frappe
-import json
-import traceback
 import re
+import json
+import frappe
 from datetime import date, datetime
-
 from invoice_ocr.vision.ocr_engine import run_vision_ocr
-from invoice_ocr.ai.ocr_agent import run_ocr_agent
 
 
 # ============================================================
-# CONSTANTS & HELPERS
+# CONSTANTS
 # ============================================================
 
-CURRENCY_RE = r"[£$€₹₨]\s?([\d,]+\.\d{2})"
+CURRENCY_RE = r"[₹₨£$€]\s?([\d,]+\.\d{2})"
+INVOICE_RE = r"ACC\-PINV\-\d{4}\-\d+"
 
+# ============================================================
+# UTILITIES
+# ============================================================
+
+def normalize(text):
+    return "\n".join(l.strip() for l in text.splitlines() if l.strip())
 
 def json_safe(v):
     if isinstance(v, (date, datetime)):
         return v.isoformat()
     return v
 
-
 def get_company():
-    company = frappe.defaults.get_user_default("Company")
-    if not company:
-        frappe.throw("Default Company not set")
-    return company
+    return frappe.defaults.get_user_default("Company")
 
+def detect_currency(text):
+    t = text.upper()
+    if "£" in t or "GBP" in t: return "GBP"
+    if "$" in t or "USD" in t: return "USD"
+    if "€" in t or "EUR" in t: return "EUR"
+    if "₨" in t or "PKR" in t or "RS" in t: return "PKR"
+    return frappe.defaults.get_global_default("currency")
 
 def get_expense_account(company):
     acc = frappe.db.get_value(
@@ -35,9 +42,8 @@ def get_expense_account(company):
         "name"
     )
     if not acc:
-        frappe.throw("Expense account not found")
+        frappe.throw("Expense Account not found")
     return acc
-
 
 def get_tax_account(company):
     acc = frappe.db.get_value(
@@ -45,25 +51,77 @@ def get_tax_account(company):
         {"company": company, "account_name": ["like", "%VAT%"], "is_group": 0},
         "name"
     )
+    if not acc:
+        frappe.throw("VAT Account not found for company")
     return acc
 
+def clean_name(s):
+    s = re.sub(r"[|]", " ", s)
+    s = re.sub(r"\s+", " ", s)
+    return s.strip()[:140] or "Service"
 
 # ============================================================
-# FALLBACK ITEM EXTRACTION (ACCOUNTING SAFE)
+# HEADER EXTRACTION
 # ============================================================
 
-def fallback_extract_items(text):
+def extract_header(text):
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    header = {}
+
+    for i, l in enumerate(lines):
+        if re.search(r"Supplier\s*Name", l, re.I):
+            parts = l.split(":", 1)
+            if len(parts) == 2 and parts[1].strip():
+                header["supplier_name"] = parts[1].strip()
+            elif i + 1 < len(lines):
+                header["supplier_name"] = lines[i + 1]
+            break
+
+    m = re.search(INVOICE_RE, text)
+    if m:
+        header["invoice_number"] = m.group(0)
+
+    m = re.search(r"(\d{2}[-/]\d{2}[-/]\d{4})", text)
+    if m:
+        header["invoice_date"] = frappe.utils.getdate(m.group(1))
+
+    header["currency"] = detect_currency(text)
+    return header
+
+# ============================================================
+# ITEM EXTRACTION (BOUNDARY SAFE – NO DUPLICATES)
+# ============================================================
+
+def extract_items(text, invoice_number):
     items = []
+    started = False
 
     for line in text.splitlines():
+
+        # start after invoice header
+        if invoice_number and invoice_number in line:
+            started = True
+            continue
+
+        if not started:
+            continue
+
+        # stop when next invoice starts
+        if re.search(INVOICE_RE, line) and items:
+            break
+
         if "|" not in line:
             continue
+
         if re.search(r"(total|tax|grand)", line.lower()):
             continue
 
         cols = [c.strip() for c in line.split("|") if c.strip()]
-        if len(cols) < 2:
+        if len(cols) < 6:
             continue
+
+        item_name = clean_name(cols[1])
+        qty = int(cols[3]) if cols[3].isdigit() and int(cols[3]) > 0 else 1
 
         rates = re.findall(CURRENCY_RE, line)
         if not rates:
@@ -72,143 +130,155 @@ def fallback_extract_items(text):
         rate = float(rates[-1].replace(",", ""))
 
         items.append({
-            "item_name": cols[1][:140],
-            "qty": 1,
+            "item_no": len(items) + 1,
+            "item_name": item_name,
+            "qty": qty,
             "rate": rate,
-            "amount": rate
+            "amount": qty * rate
         })
 
     return items
 
+# ============================================================
+# GRAND TOTAL EXTRACTION (SAFE)
+# ============================================================
+
+def extract_grand_total(text):
+    lines = text.splitlines()
+    for i, l in enumerate(lines):
+        if "grand total" in l.lower():
+            m = re.search(CURRENCY_RE, l)
+            if m:
+                return float(m.group(1).replace(",", ""))
+            if i + 1 < len(lines):
+                m2 = re.search(CURRENCY_RE, lines[i + 1])
+                if m2:
+                    return float(m2.group(1).replace(",", ""))
+    return None
 
 # ============================================================
-# MAIN OCR
+# RUN OCR (FINAL PIPELINE)
 # ============================================================
 
 @frappe.whitelist()
 def run_ocr(docname):
-    try:
-        doc = frappe.get_doc("Invoice OCR", docname)
-        company = get_company()
 
-        # ---------------- STEP 1: OCR ----------------
-        raw_text = run_vision_ocr(doc.invoice_file)
-        doc.raw_ocr_text = raw_text
+    doc = frappe.get_doc("Invoice OCR", docname)
+    company = get_company()
 
-        # ---------------- STEP 2: AI ----------------
-        result = run_ocr_agent(raw_text)
+    raw = run_vision_ocr(doc.invoice_file)
+    doc.raw_ocr_text = raw
+    text = normalize(raw)
 
-        header = result.get("header", {})
-        items = result.get("items", [])
-        taxes = result.get("taxes", [])
-        confidence = result.get("confidence", 0)
+    header = extract_header(text)
+    items = extract_items(text, header.get("invoice_number"))
 
-        # ---------------- STEP 3: FALLBACK ----------------
-        if not items:
-            items = fallback_extract_items(raw_text)
-            confidence = max(confidence, 60)
+    net_total = sum(i["amount"] for i in items)
 
-        # ---------------- HEADER ----------------
+    grand_total = extract_grand_total(text)
+    if grand_total is None:
+        grand_total = net_total
+
+    # VAT = GRAND − NET (SAP LOGIC)
+    tax_total = round(grand_total - net_total, 2) if grand_total > net_total else 0.0
+
+    # ---------------- HEADER ----------------
+    if not doc.supplier_name:
         doc.supplier_name = header.get("supplier_name")
-        doc.invoice_number = header.get("invoice_number")
-        doc.invoice_date = header.get("invoice_date")
-        doc.currency = header.get("currency") or doc.currency
 
-        # ---------------- ITEMS ----------------
-        doc.items = []
-        expense_account = get_expense_account(company)
-        net_total = 0
+    doc.invoice_number = header.get("invoice_number")
+    doc.invoice_date = header.get("invoice_date")
+    doc.currency = header.get("currency")
+    
+    # ---------------- ITEMS ----------------
+    doc.items = []
+    expense_account = get_expense_account(company)
 
-        for it in items:
-            net_total += it["amount"]
-
-            doc.append("items", {
-                "item_name": it["item_name"],
-                "qty": it["qty"],
-                "rate": it["rate"],
-                "amount": it["amount"],
-                "uom": "Nos",
-                "expense_account": expense_account
+    for it in items:
+        doc.append("items", {
+            "item_name": it["item_name"],
+            "qty": it["qty"],
+            "rate": it["rate"],
+            "uom": "Nos",
+            "expense_account": expense_account
             })
 
-        # ---------------- TAX ----------------
-        tax_total = 0
-        doc.taxes = []
-
+    # ---------------- TAXES ----------------
+    if tax_total > 0:
         tax_account = get_tax_account(company)
-        if tax_account:
-            grand_match = re.search(r"grand total.*?([\d,]+\.\d{2})", raw_text.lower())
-            if grand_match:
-                grand_total = float(grand_match.group(1).replace(",", ""))
-                tax_total = round(grand_total - net_total, 2)
+        if net_total > 0:
+            doc.append("taxes", {
+                "charge_type": "On Net Total",
+                "account_head": tax_account,
+                "description": tax_account,
+                "rate": round((tax_total / net_total) * 100, 2)
+                })
+        else:
+            doc.append("taxes", {
+                "charge_type": "Actual",
+                "account_head": tax_account,
+                "description": tax_account,
+                "tax_amount": tax_total
+                })
 
-                if tax_total > 0:
-                    doc.append("taxes", {
-                        "charge_type": "On Net Total",
-                        "account_head": tax_account,
-                        "description": tax_account,
-                        "rate": 0,
-                        "tax_amount": tax_total
-                    })
 
-        # ---------------- TOTALS ----------------
-        doc.net_total = net_total
-        doc.tax_total = tax_total
-        doc.grand_total = net_total + tax_total
+    # ---------------- TOTALS (STAGING DOC) ----------------
+    doc.net_total = net_total
+    doc.tax_total = tax_total
+    doc.grand_total = grand_total
 
-        # ---------------- META ----------------
-        doc.semantic_invoice_json = json.dumps({
-            "header": header,
-            "items": items,
-            "taxes": taxes,
-            "totals": {
-                "net_total": net_total,
-                "tax_total": tax_total,
-                "grand_total": doc.grand_total
-            }
-        }, indent=2)
 
-        doc.confidence = confidence
-        doc.status = "Ready"
 
-        doc.flags.ignore_mandatory = True
-        doc.save(ignore_permissions=True)
-        frappe.db.commit()
-
-        return {
+    # ---------------- SEMANTIC JSON ----------------
+    doc.semantic_invoice_json = json.dumps({
+        "header": {
+            "supplier_name": header.get("supplier_name"),
+            "invoice_number": header.get("invoice_number"),
+            "invoice_date": json_safe(header.get("invoice_date")),
+            "currency": header.get("currency")
+        },
+        "items": items,
+        "taxes": [{
+            "charge_type": "On Net Total",
+            "account_head": get_tax_account(company),
+            "description": get_tax_account(company),
+            "rate": 0,
+            "tax_amount": tax_total
+        }] if tax_total > 0 else [],
+        "totals": {
             "net_total": net_total,
             "tax_total": tax_total,
-            "grand_total": doc.grand_total,
-            "confidence": confidence
+            "grand_total": grand_total
         }
+    }, indent=2)
 
-    except Exception as e:
-        frappe.log_error(traceback.format_exc(), "Invoice OCR Failed")
-        frappe.throw(str(e))
+    doc.confidence = 100 if items else 60
+    doc.status = "Ready"
 
-# ============================================================
-# CREATE PURCHASE INVOICE (FINAL – ERP SAFE)
-# ============================================================
+    doc.flags.ignore_mandatory = True
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
 
+    return {
+        "net_total": net_total,
+        "tax_total": tax_total,
+        "grand_total": grand_total
+    }
 @frappe.whitelist()
 def create_purchase_invoice(docname):
+    """
+    Create Purchase Invoice from Invoice OCR document
+    """
+
     doc = frappe.get_doc("Invoice OCR", docname)
 
-    if doc.status != "Ready":
-        frappe.throw("OCR is not Ready")
-
-    if doc.purchase_invoice:
-        frappe.throw("Purchase Invoice already created")
-
     if not doc.supplier:
-        frappe.throw("Please select Supplier")
+        frappe.throw("Please select Supplier before creating Purchase Invoice")
 
     if not doc.items:
-        frappe.throw("No items found")
+        frappe.throw("No items found to create Purchase Invoice")
 
     company = frappe.defaults.get_user_default("Company")
-    if not company:
-        frappe.throw("Default Company not set")
 
     pi = frappe.new_doc("Purchase Invoice")
     pi.company = company
@@ -218,7 +288,6 @@ def create_purchase_invoice(docname):
     pi.posting_date = doc.invoice_date
     pi.currency = doc.currency
     pi.update_stock = 0
-    pi.ignore_pricing_rule = 1
 
     # ---------------- ITEMS ----------------
     for row in doc.items:
@@ -234,13 +303,12 @@ def create_purchase_invoice(docname):
         pi.append("taxes", {
             "charge_type": tax.charge_type,
             "account_head": tax.account_head,
+            "description": tax.description,
             "rate": tax.rate,
             "tax_amount": tax.tax_amount
         })
 
-    pi.flags.ignore_mandatory = True
     pi.insert(ignore_permissions=True)
-    pi.submit()
 
     # ---------------- LINK BACK ----------------
     doc.purchase_invoice = pi.name
@@ -249,9 +317,6 @@ def create_purchase_invoice(docname):
 
     frappe.db.commit()
 
-    return {
-    "status": "success",
-    "purchase_invoice": pi.name,
-    "redirect": f"/app/purchase-invoice/{pi.name}"
-}
+    return pi.name
+
 

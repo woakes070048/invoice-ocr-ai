@@ -1,12 +1,4 @@
-# =========================================================
-# Invoice OCR – Cloud-safe AI Dependencies
-# Frappe Cloud / ERPNext (Python 3.10)
-# =========================================================
-
-# HTTP requests (DeepInfra OCR)
 requests>=2.28.0
-
-# LangChain stack (tested stable versions)
 langchain>=0.2.0,<0.3.0
 langchain-openai>=0.1.0,<0.2.0
 langgraph>=0.0.40,<0.1.0

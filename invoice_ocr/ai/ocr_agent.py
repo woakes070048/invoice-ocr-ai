@@ -6,8 +6,6 @@ NO dependency on ai/ocr_engine
 
 from langgraph.graph import StateGraph, END
 
-from langgraph.graph import StateGraph, END
-
 from invoice_ocr.ai.ocr_nodes import (
     extract_header,
     extract_items,
