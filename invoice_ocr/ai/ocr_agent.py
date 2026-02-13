@@ -1,30 +1,35 @@
-from langgraph.graph import StateGraph, END
-from .ocr_nodes import extract_invoice
+from .ocr_nodes import (
+    extract_header,
+    extract_items,
+    extract_taxes,
+    score_confidence,
+)
 from .validation import validate_invoice
-from .confidence import calculate_confidence
 
 
 def run_ocr_agent(ocr_text: str) -> dict:
+    """
+    DeepInfra-powered OCR Agent
+    Enterprise-safe
+    """
 
-    graph = StateGraph(dict)
+    state = {
+        "ocr_text": ocr_text,
+        "header": {},
+        "items": [],
+        "charges": [],
+        "confidence": 0
+    }
 
-    graph.add_node("extract", extract_invoice)
+    state = extract_header(state)
+    state = extract_items(state)
+    state = extract_taxes(state)
+    state = score_confidence(state)
 
-    graph.set_entry_point("extract")
-    graph.add_edge("extract", END)
-
-    agent = graph.compile()
-
-    result = agent.invoke({
-        "ocr_text": ocr_text
-    })
-
-    data = result["data"]
-    validation = validate_invoice(data)
-    confidence = calculate_confidence(data, validation)
+    validation = validate_invoice(state)
 
     return {
-        "data": data,
-        "validation": validation,
-        "confidence": confidence
+        "confidence": state["confidence"],
+        "data": state,
+        "validation": validation
     }
