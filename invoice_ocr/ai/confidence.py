@@ -1,47 +1,26 @@
-"""
-Confidence scoring for Invoice OCR
-Cloud-safe, deterministic, no external dependencies
-"""
-
-def calculate_confidence(state: dict) -> int:
-    """
-    Calculate confidence score (0–100) based on extracted data quality
-    """
-
+def calculate_confidence(data: dict, validation: dict) -> int:
     score = 0
 
-    # ---------------- HEADER (40%) ----------------
-    header = state.get("header") or {}
-    if header:
-        if header.get("supplier"):
-            score += 15
-        if header.get("invoice_number"):
-            score += 10
-        if header.get("invoice_date"):
-            score += 10
-        if header.get("currency"):
-            score += 5
+    header = data.get("header") or {}
+    items = data.get("items") or []
+    totals = data.get("totals") or {}
 
-    # ---------------- ITEMS (40%) ----------------
-    items = state.get("items") or []
+    if header.get("supplier_name"):
+        score += 15
+    if header.get("invoice_number"):
+        score += 10
+    if header.get("invoice_date"):
+        score += 10
+    if header.get("currency"):
+        score += 5
+
     if items:
-        score += 20
-        valid_items = 0
-        for i in items:
-            if i.get("qty") and i.get("rate"):
-                valid_items += 1
-        if valid_items == len(items):
-            score += 20
+        score += 30
 
-    # ---------------- TAXES (20%) ----------------
-    taxes = state.get("taxes") or []
-    if taxes:
+    if totals.get("grand_total"):
         score += 20
 
-    # ---------------- SAFE BOUNDS ----------------
-    if score < 0:
-        score = 0
-    if score > 100:
-        score = 100
+    if not validation.get("errors"):
+        score += 10
 
-    return score
+    return min(score, 100)
