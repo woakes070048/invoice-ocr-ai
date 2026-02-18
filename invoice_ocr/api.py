@@ -67,18 +67,21 @@ def run_ocr(docname):
 
     doc = frappe.get_doc("Invoice OCR", docname)
 
-    # -----------------------------
-    # FILE FETCH SAFE
-    # -----------------------------
+    # ========================================================
+    # FILE FETCH (CAMERA OR UPLOAD SAFE)
+    # ========================================================
 
-    if not doc.invoice_file:
-        frappe.throw("Please upload invoice file before running OCR")
+    file_url = doc.invoice_file or doc.camera_capture
 
-    file_doc = frappe.get_doc("File", {"file_url": doc.invoice_file})
+    if not file_url:
+        frappe.throw("Please upload or capture invoice before running OCR")
+
+    file_doc = frappe.get_doc("File", {"file_url": file_url})
     file_path = file_doc.get_full_path()
 
     if not os.path.exists(file_path):
         frappe.throw("Invoice file not found on server")
+
 
     # -----------------------------
     # OCR (PDF + IMAGE SAFE)

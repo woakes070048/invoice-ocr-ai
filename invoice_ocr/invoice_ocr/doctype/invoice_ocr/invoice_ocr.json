@@ -15,6 +15,7 @@
   "field_order": [
     "invoice_section",
     "invoice_file",
+    "camera_capture",
 
     "header_section",
     "supplier",
@@ -53,11 +54,15 @@
     {
       "fieldname": "invoice_file",
       "fieldtype": "Attach",
-      "label": "Upload / Scan Invoice",
-      "reqd": 1,
-      "description": "Mobile: opens camera automatically"
+      "label": "Upload",
+      "description": "system: upload file with system"
     },
-
+    {
+    "fieldname": "camera_capture",
+    "fieldtype": "Attach Image",
+    "label": "Capture Invoice (Camera)",
+    "description": "Mobile: opens camera directly"
+    },
     {
       "fieldname": "header_section",
       "fieldtype": "Section Break",
