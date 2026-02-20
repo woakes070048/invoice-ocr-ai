@@ -1,22 +1,28 @@
-def calculate_confidence(state: dict) -> int:
+def calculate_confidence(state):
 
     score = 0
 
-    header = state.get("header") or {}
-    items = state.get("items") or []
-    taxes = state.get("taxes") or []
+    header = state.get("header", {})
+    items = state.get("items", [])
+    taxes = state.get("taxes", [])
+    financial = state.get("financial_validation", {})
 
     if header.get("invoice_number"):
-        score += 20
+        score += 15
+
     if header.get("invoice_date"):
-        score += 20
+        score += 15
+
     if header.get("currency"):
         score += 10
 
     if items:
-        score += 30
+        score += 20
 
     if taxes:
-        score += 20
+        score += 15
+
+    if financial.get("is_valid"):
+        score += 25
 
     return min(score, 100)

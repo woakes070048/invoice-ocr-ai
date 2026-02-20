@@ -23,14 +23,24 @@ def detect_currency(text):
 
 
 def extract_grand_total(text):
-    match = re.search(
-        r"Grand Total[:\s]*[£$€₹₨]?\s?([\d,]+\.\d{2})",
-        text,
-        re.IGNORECASE
-    )
-    if match:
-        return float(match.group(1).replace(",", ""))
-    return None
+
+        match = re.search(
+            r"(grand total|total due|total including).*?([\d,]+\.\d{2})",
+            text,
+            re.IGNORECASE
+        )
+
+        if match:
+            return float(match.group(2).replace(",", ""))
+
+        # fallback → last number
+        amounts = re.findall(r"[\d,]+\.\d{2}", text)
+
+        if amounts:
+            return float(amounts[-1].replace(",", ""))
+
+        return None
+
 
 
 def extract_any_date(text):
@@ -51,24 +61,24 @@ def extract_any_date(text):
 # ============================================================
 # RUN OCR
 # ============================================================
-
 @frappe.whitelist()
 def run_ocr(docname):
 
-    from invoice_ocr.ai.ocr_nodes import (
-        extract_header,
-        extract_items,
-        extract_taxes,
-        score_confidence
-    )
     from invoice_ocr.intelligence.supplier_matcher import intelligent_supplier_match
     from invoice_ocr.intelligence.line_classifier import classify_lines
     from invoice_ocr.intelligence.financial_validator import validate_financials
 
+    from invoice_ocr.ai.agents.layout_agent import detect_layout
+    from invoice_ocr.ai.agents.context_builder import build_context
+    from invoice_ocr.ai.agents.header_agent import extract_header_agent
+    from invoice_ocr.ai.agents.items_agent import extract_items_agent
+    from invoice_ocr.ai.agents.tax_agent import extract_tax_agent
+    from invoice_ocr.ai.agents.reflection_agent import reflect_and_correct
+
     doc = frappe.get_doc("Invoice OCR", docname)
 
     # ========================================================
-    # FILE FETCH (CAMERA OR UPLOAD SAFE)
+    # FILE FETCH
     # ========================================================
 
     file_url = doc.invoice_file or doc.camera_capture
@@ -82,10 +92,9 @@ def run_ocr(docname):
     if not os.path.exists(file_path):
         frappe.throw("Invoice file not found on server")
 
-
-    # -----------------------------
-    # OCR (PDF + IMAGE SAFE)
-    # -----------------------------
+    # ========================================================
+    # OCR
+    # ========================================================
 
     try:
         raw = run_vision_ocr(file_path)
@@ -95,74 +104,43 @@ def run_ocr(docname):
 
     doc.raw_ocr_text = raw
 
-    # -----------------------------
-    # AI PIPELINE
-    # -----------------------------
+    # ========================================================
+    # INITIAL STATE
+    # ========================================================
 
     state = {
         "ocr_text": raw,
         "header": {},
         "items": [],
         "taxes": [],
-        "confidence": 0
+        "confidence": 60
     }
 
-    state = extract_header(state)
-    state = extract_items(state)
-    state = extract_taxes(state)
-    state = score_confidence(state)
+    # ========================================================
+    # MULTI AGENT PIPELINE
+    # ========================================================
+
+    state = detect_layout(state)
+    state = build_context(state)
+    state = extract_header_agent(state)
+    state = extract_items_agent(state)
+    state = extract_tax_agent(state)
     state = classify_lines(state)
 
-    header = state.get("header") or {}
-    confidence = state.get("confidence", 60)
+    detected_grand_total = extract_grand_total(raw)
+    state["detected_grand_total"] = detected_grand_total
 
-    # -----------------------------
-    # SUPPLIER MATCHING
-    # -----------------------------
-
-    supplier_name = header.get("supplier_name")
-    supplier_meta = {}
-    detected_supplier = None
-
-    if supplier_name:
-        result = intelligent_supplier_match(supplier_name)
-        if isinstance(result, dict):
-            detected_supplier = result.get("supplier")
-            supplier_meta = result
-        else:
-            detected_supplier = result
-
-    if detected_supplier:
-        doc.supplier = detected_supplier
-
-    state["supplier_match_meta"] = supplier_meta
-
-    # -----------------------------
-    # HEADER SAVE
-    # -----------------------------
-
-    doc.invoice_number = header.get("invoice_number")
-
-    raw_date = header.get("invoice_date") or extract_any_date(raw)
-
-    try:
-        doc.invoice_date = getdate(raw_date) if raw_date else None
-    except Exception:
-        doc.invoice_date = None
-
-    if not doc.currency:
-        doc.currency = header.get("currency") or detect_currency(raw)
-
-    # -----------------------------
-    # BUILD ITEMS (ERP SAFE)
-    # -----------------------------
+    # ========================================================
+    # BUILD ITEMS (ONLY VALID ITEMS)
+    # ========================================================
 
     doc.set("items", [])
     net_total = 0
+    clean_items = []
 
     for it in state.get("items", []):
 
-        if it.get("classification") not in ["VALID_ITEM", "HEADER_ROW"]:
+        if it.get("classification") != "VALID_ITEM":
             continue
 
         item_name = it.get("item_name")
@@ -177,6 +155,7 @@ def run_ocr(docname):
             continue
 
         net_total += amount
+        clean_items.append(it)
 
         doc.append("items", {
             "item_name": item_name,
@@ -189,40 +168,65 @@ def run_ocr(docname):
             "uom": "Nos"
         })
 
-    # -----------------------------
-    # GRAND TOTAL DETECT
-    # -----------------------------
-
-    detected_grand_total = extract_grand_total(raw)
-
-    # -----------------------------
-    # TAX FALLBACK
-    # -----------------------------
-
+    state["items"] = clean_items
     state["net_total"] = net_total
-    state["detected_grand_total"] = detected_grand_total
 
-    if (
-        not state.get("taxes")
-        and detected_grand_total
-        and net_total
-    ):
-        calculated_tax = round(detected_grand_total - net_total, 2)
+    # ========================================================
+    # CLEAN TAX VALIDATION
+    # ========================================================
 
-        if calculated_tax > 0:
+    clean_taxes = []
+    tax_total = 0
+
+    for tx in state.get("taxes", []):
+
+        amount = float(tx.get("amount") or 0)
+
+        if amount <= 0:
+            continue
+
+        # ❌ Ignore tax equal to subtotal
+        if amount == net_total:
+            continue
+
+        # ❌ Ignore unrealistic tax (>40%)
+        if net_total and amount > (net_total * 0.4):
+            continue
+
+        clean_taxes.append(tx)
+        tax_total += amount
+
+    state["taxes"] = clean_taxes
+    state["tax_total"] = tax_total
+
+    # ========================================================
+    # SMART TAX FALLBACK
+    # ========================================================
+
+    if detected_grand_total and net_total:
+        difference = round(detected_grand_total - net_total, 2)
+    else:
+        difference = 0
+
+    if not state["taxes"] and difference > 0:
+
+        if difference >= 1 and difference <= (net_total * 0.4):
+
             state["taxes"] = [{
                 "charge_type": "Actual",
-                "label": "Auto VAT",
-                "rate": 0,
-                "amount": calculated_tax
+                "label": "Auto Detected Tax",
+                "rate": None,
+                "amount": difference
             }]
 
-    # -----------------------------
-    # BUILD TAXES (ERP SAFE)
-    # -----------------------------
+            state["tax_total"] = difference
+            tax_total = difference
+
+    # ========================================================
+    # BUILD TAX TABLE IN ERP
+    # ========================================================
 
     doc.set("taxes", [])
-    tax_total = 0
 
     company = frappe.defaults.get_user_default("Company") \
         or frappe.db.get_single_value("Global Defaults", "default_company")
@@ -236,29 +240,25 @@ def run_ocr(docname):
     for tx in state.get("taxes", []):
 
         amount = float(tx.get("amount") or 0)
-
         if amount <= 0:
             continue
-
-        tax_total += amount
 
         doc.append("taxes", {
             "charge_type": tx.get("charge_type") or "Actual",
             "account_head": tax_account,
-            "description": tx.get("label") or "VAT",
+            "description": tx.get("label") or "Tax",
             "rate": float(tx.get("rate") or 0),
             "tax_amount": amount,
             "base_tax_amount": amount
         })
 
-    state["tax_total"] = tax_total
-
-    # -----------------------------
+    # ========================================================
     # FINANCIAL VALIDATION
-    # -----------------------------
+    # ========================================================
 
     financial_report = validate_financials(state)
 
+    confidence = state.get("confidence", 60)
     confidence += financial_report.get("confidence_adjustment", 0)
     confidence = max(0, min(100, confidence))
 
@@ -267,22 +267,46 @@ def run_ocr(docname):
     doc.financial_mismatch = financial_report.get("mismatch_amount")
     doc.is_financial_valid = financial_report.get("is_valid")
 
-    # -----------------------------
+    # ========================================================
     # FINAL TOTALS
-    # -----------------------------
+    # ========================================================
 
     doc.net_total = net_total
     doc.tax_total = tax_total
 
     doc.grand_total = (
         detected_grand_total
-        or doc.calculated_grand_total
+        or financial_report.get("calculated_grand_total")
         or (net_total + tax_total)
     )
 
-    # -----------------------------
+    # ========================================================
+    # SUPPLIER MATCHING
+    # ========================================================
+
+    header = state.get("header") or {}
+    supplier_name = header.get("supplier_name")
+
+    if supplier_name:
+        result = intelligent_supplier_match(supplier_name)
+        if isinstance(result, dict):
+            doc.supplier = result.get("supplier")
+
+    doc.invoice_number = header.get("invoice_number")
+
+    raw_date = header.get("invoice_date") or extract_any_date(raw)
+
+    try:
+        doc.invoice_date = getdate(raw_date) if raw_date else None
+    except Exception:
+        doc.invoice_date = None
+
+    if not doc.currency:
+        doc.currency = header.get("currency") or detect_currency(raw)
+
+    # ========================================================
     # SAVE
-    # -----------------------------
+    # ========================================================
 
     state["financial_validation"] = financial_report
     doc.semantic_invoice_json = frappe.as_json(state, indent=2)
@@ -302,40 +326,6 @@ def run_ocr(docname):
         "risk_level": doc.financial_risk,
         "is_valid": doc.is_financial_valid
     }
-
-@frappe.whitelist()
-def create_purchase_invoice(docname):
-
-    from frappe.utils import today, getdate
-
-    doc = frappe.get_doc("Invoice OCR", docname)
-
-    # ============================================================
-    # 1️⃣ BASIC VALIDATIONS
-    # ============================================================
-
-    if not doc.supplier:
-        frappe.throw("Please select Supplier before creating Purchase Invoice")
-
-    if not doc.invoice_number:
-        frappe.throw("Invoice Number missing")
-
-    if not doc.items:
-        frappe.throw("No items found")
-
-    company = frappe.defaults.get_user_default("Company")
-
-    if not company:
-        frappe.throw("Default Company not found")
-
-    # Prevent duplicate
-    existing = frappe.db.exists(
-        "Purchase Invoice",
-        {"bill_no": doc.invoice_number, "supplier": doc.supplier}
-    )
-
-    if existing:
-        frappe.throw(f"Purchase Invoice already exists: {existing}")
 
     # ============================================================
     # 2️⃣ CREATE PURCHASE INVOICE (SAFE INIT)

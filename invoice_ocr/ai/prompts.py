@@ -1,38 +1,38 @@
 # ============================================================
 # HEADER PROMPT
 # ============================================================
-
-HEADER_PROMPT = """
-Extract invoice header from OCR text.
+HEADER_PROMPT_TEMPLATE = """
+You are extracting header from a {country} {invoice_type} invoice.
 
 Return JSON:
-
-{
+{{
   "supplier_name": null,
   "invoice_number": null,
   "invoice_date": null,
   "currency": null
-}
+}}
 """
 
 
-# ============================================================
-# ITEMS PROMPT
-# ============================================================
+ITEMS_PROMPT_TEMPLATE = """
+You are extracting line items from a {table_structure} invoice.
 
-ITEMS_PROMPT = """
-Extract invoice line items.
+Rules:
+- If item name contains "Charges", "Freight", "Carriage", classify separately
+- Do NOT mix tax rows with goods
+- Validate qty * rate = amount
+
 
 Return JSON array:
+ [
+    {{
+      "item_name": null,
+      "qty": 1,
+      "rate": 0,
+      "amount": 0
+    }}
+  ]
 
-[
-  {
-    "item_name": null,
-    "qty": 1,
-    "rate": 0,
-    "amount": 0
-  }
-]
 """
 
 

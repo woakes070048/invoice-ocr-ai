@@ -39,6 +39,9 @@ def classify_lines(state):
         elif any(word in name_lower for word in ["tax", "vat", "gst"]):
             classification = "TAX_ROW"
 
+        elif any(word in name_lower for word in ["charges", "freight", "carriage"]):
+            classification = "CHARGE_ROW"
+
         # ---------------------------------------------------
         # 2️⃣ Numeric structural validation
         # ---------------------------------------------------
