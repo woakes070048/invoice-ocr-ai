@@ -6,14 +6,14 @@ frappe.ui.form.on("Invoice OCR", {
         frm.page.clear_primary_action();
 
         // ==================================================
-        // 📸 OPEN CAMERA BUTTON (FULL SAFE VERSION)
+        // 📸 OPEN CAMERA (FRAPPE v15 SAFE VERSION)
         // ==================================================
 
         frm.add_custom_button("📸 Open Camera", async () => {
 
             try {
 
-                // ✅ If document is new → save first
+                // ✅ Save document first if new
                 if (frm.is_new()) {
                     await frm.save();
                 }
@@ -23,19 +23,19 @@ frappe.ui.form.on("Invoice OCR", {
                 input.accept = "image/*";
                 input.capture = "environment";
 
-                input.onchange = function(e) {
+                input.onchange = function (e) {
 
                     let file = e.target.files[0];
                     if (!file) return;
 
                     let reader = new FileReader();
 
-                    reader.onload = async function() {
+                    reader.onload = async function () {
 
                         try {
 
-                            // ✅ Remove base64 header
-                            let base64 = reader.result.split(",")[1];
+                            // ✅ Send full data URL (important for v15)
+                            let base64 = reader.result;
 
                             let r = await frappe.call({
                                 method: "frappe.client.attach_file",
@@ -50,7 +50,7 @@ frappe.ui.form.on("Invoice OCR", {
                                 freeze_message: __("Uploading image...")
                             });
 
-                            // ✅ Link file to field
+                            // Link file to field
                             frm.set_value("camera_capture", r.message.file_url);
 
                             await frm.save();
@@ -109,7 +109,7 @@ frappe.ui.form.on("Invoice OCR", {
 
 
         // ==================================================
-        // 🧾 GENERATE PURCHASE INVOICE (AUTO SAVE FIRST)
+        // 🧾 GENERATE PURCHASE INVOICE
         // ==================================================
 
         if (frm.doc.status === "Ready" && !frm.doc.purchase_invoice) {
