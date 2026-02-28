@@ -278,16 +278,22 @@ def run_ocr(docname):
     # ============================================================
 
     state["financial_validation"] = report
-    doc.semantic_invoice_json = frappe.as_json(state, indent=2)
+    #doc.semantic_invoice_json = frappe.as_json(state, indent=2)
+    doc.db_set("semantic_invoice_json", frappe.as_json(state, indent=2))
 
-    doc.confidence = state.get("confidence", 60)
-    doc.status = "Ready"
+    #doc.confidence = state.get("confidence", 60)
+    doc.db_set("confidence", state.get("confidence", 60))
+    #doc.status = "Ready"
+    doc.db_set("status", "Ready")
 
     doc.flags.ignore_mandatory = True
     doc.save(ignore_permissions=True, ignore_version=True)
     frappe.db.commit()
 
     return {"status": "Completed"}
+  
+   
+   
 
 
 # ============================================================
