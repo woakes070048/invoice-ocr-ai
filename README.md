@@ -115,19 +115,116 @@ bench restart
 
 
 
+## 📸 Screenshots & Workflow
+
+---
+
+### 1️⃣ Upload Invoice
+
+Users can upload invoice files in PNG, JPG, JPEG, or PDF format.  
+Mobile camera capture is also supported for real-time invoice scanning.
 
 ![Upload Invoice](screenshots/01-upload-invoice.png)
-![Draft State](screenshots/02-draft-before-ocr.png)
-![Processing](screenshots/03-processing-state.png)
-![Header Extraction](screenshots/04-header-extraction.png)
-![Items & Taxes](screenshots/05-items-and-taxes.png)
-![Raw OCR](screenshots/06-raw-ocr-output.png)
-![Semantic JSON](screenshots/07-semantic-json.png)
-![Duplicate Protection](screenshots/08-duplicate-protection.png)
-![Purchase Invoice](screenshots/09-purchase-invoice-created.png)
-![Mobile Processing](screenshots/11-mobile-processing.jpeg)
-![Mobile Menu](screenshots/12-mobile-menu.jpeg)
 
+---
+
+### 2️⃣ Draft Before OCR
+
+After upload, the document is saved in Draft state.  
+Users can review or modify before triggering OCR processing.
+
+![Draft State](screenshots/02-draft-before-ocr.png)
+
+---
+
+### 3️⃣ Background Processing
+
+OCR runs asynchronously using Frappe background jobs.  
+The system shows processing status without blocking the UI.
+
+![Processing](screenshots/03-processing-state.png)
+
+---
+
+### 4️⃣ Header Extraction
+
+AI extracts structured header information including:
+
+- Supplier Name  
+- Invoice Date  
+- Invoice Number  
+- Currency  
+
+![Header Extraction](screenshots/04-header-extraction.png)
+
+---
+
+### 5️⃣ Items & Taxes Extraction
+
+Line items and tax rows are automatically detected and structured:
+
+- Item Name  
+- Quantity  
+- Rate  
+- Amount  
+- Tax Accounts  
+
+![Items & Taxes](screenshots/05-items-and-taxes.png)
+
+---
+
+### 6️⃣ Raw OCR Output
+
+Full OCR raw output is stored for audit and debugging purposes.
+
+![Raw OCR](screenshots/06-raw-ocr-output.png)
+
+---
+
+### 7️⃣ Semantic JSON Output
+
+AI generates structured semantic JSON including:
+
+- Confidence score  
+- Risk level  
+- Financial validation  
+- Context detection  
+
+![Semantic JSON](screenshots/07-semantic-json.png)
+
+---
+
+### 8️⃣ Duplicate Protection
+
+The system prevents duplicate Purchase Invoice creation  
+by checking existing invoice numbers.
+
+![Duplicate Protection](screenshots/08-duplicate-protection.png)
+
+---
+
+### 9️⃣ Purchase Invoice Created
+
+With one click, a validated Purchase Invoice is generated  
+inside ERPNext Accounting.
+
+![Purchase Invoice](screenshots/09-purchase-invoice-created.png)
+
+---
+
+### 🔟 Mobile Processing
+
+Invoice OCR works seamlessly on mobile devices.
+
+![Mobile Processing](screenshots/11-mobile-processing.jpeg)
+
+---
+
+### 1️⃣1️⃣ Mobile Menu Access
+
+Users can trigger OCR actions directly from the mobile menu.
+
+![Mobile Menu](screenshots/12-mobile-menu.jpeg)
 ---
 
 ## 🔒 Security
