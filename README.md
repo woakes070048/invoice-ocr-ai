@@ -110,7 +110,10 @@ bench install-app invoice_ocr
 bench migrate
 bench restart
 
----
+
+
+
+
 ## 📸 Screenshots
 
 ### 1️⃣ Upload Invoice
