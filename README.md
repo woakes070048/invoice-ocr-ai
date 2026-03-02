@@ -6,7 +6,6 @@ Invoice OCR automatically extracts structured invoice data from images and PDFs 
 
 ---
 
-
 ## 🧭 How It Works
 
 1. User uploads invoice (Image or PDF)
@@ -16,7 +15,9 @@ Invoice OCR automatically extracts structured invoice data from images and PDFs 
 5. User reviews extracted data
 6. Purchase Invoice is generated inside ERPNext
 
-Processing runs in background for better performance.
+Processing runs in background using Frappe background jobs for better performance.
+
+---
 
 ## 🚀 Features
 
@@ -100,8 +101,6 @@ The API key is securely stored in a Password field and never hardcoded.
 
 ## 📦 Installation
 
-## 📦 Installation
-
 Using Bench CLI:
 
 ```bash
@@ -111,6 +110,7 @@ bench install-app invoice_ocr
 bench migrate
 bench restart
 
+---
 ## 📸 Screenshots
 
 ### 1️⃣ Upload Invoice
@@ -140,11 +140,25 @@ bench restart
 ### 9️⃣ Purchase Invoice Created
 ![Purchase Invoice](screenshots/09-purchase-invoice-created.PNG)
 
-### 🔟 Upload Popup
-![Upload Popup](screenshots/10-upload-popup.jpeg)
-
 ### 📱 Mobile Processing
 ![Mobile Processing](screenshots/11-mobile-processing.jpeg)
 
 ### 📱 Mobile Menu
 ![Mobile Menu](screenshots/12-mobile-menu.jpeg)
+
+---
+
+## 🔒 Security
+
+- No API keys stored in source code
+- API key stored securely using Frappe Password field
+- Private file storage
+- Background job isolation
+- Error logging for audit purposes
+
+---
+
+## 📄 License
+
+MIT
+
