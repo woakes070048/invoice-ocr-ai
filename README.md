@@ -116,6 +116,15 @@ bench restart
 
 
 ## 📸 Screenshots & Workflow
+---
+
+
+### 🔐 DeepInfra API Configuration
+
+Before running OCR, configure your DeepInfra API key  
+inside the DeepInfra Settings DocType.
+
+![DeepInfra Settings](screenshots/10-deepinfra-settings.png)
 
 ---
 
