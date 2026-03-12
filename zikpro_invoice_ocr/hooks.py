@@ -1,5 +1,5 @@
-app_name = "invoice_ocr"
-app_title = "Invoice OCR"
+app_name = "zikpro_invoice_ocr"
+app_title = "Zikpro AI Invoice OCR"
 app_publisher = "Zikpro Ltd"
 app_description = "AI-powered Invoice OCR to Purchase Invoice automation using DeepInfra"
 app_email = "info@zikpro.com"
@@ -8,11 +8,9 @@ app_license = "MIT"
 # -------------------------------------------------
 # DocType JS (Cloud-safe)
 # -------------------------------------------------
-
 doctype_js = {
     "Invoice OCR": "public/js/invoice_ocr.js"
 }
-
 # -------------------------------------------------
 # Optional: App visibility in Desk (disabled)
 # -------------------------------------------------
@@ -22,7 +20,7 @@ doctype_js = {
 #         "logo": "/assets/invoice_ocr/logo.png",
 #         "title": "OCR-AI",
 #         "route": "/invoice_ocr",
-#         "has_permission": "invoice_ocr.api.permission.has_app_permission"
+#        #         "has_permission": "zikpro_invoice_ocr.api.permission.has_app_permission"
 #     }
 # ]
 

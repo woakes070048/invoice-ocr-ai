@@ -8,7 +8,7 @@ frappe.ui.form.on("DeepInfra Settings", {
         frm.add_custom_button("Test Connection", function() {
 
             frappe.call({
-                method: "invoice_ocr.api.test_deepinfra_connection",
+                method: "zikpro_invoice_ocr.api.test_deepinfra_connection",
                 freeze: true,
                 freeze_message: "Testing DeepInfra connection...",
                 callback: function(r) {

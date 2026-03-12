@@ -59,7 +59,7 @@ frappe.ui.form.on("Invoice OCR", {
                 });
 
                 await frappe.call({
-                    method: "invoice_ocr.api.enqueue_ocr",
+                    method: "zikpro_invoice_ocr.api.enqueue_ocr",
                     args: { docname: frm.doc.name },
                     freeze: true,
                     freeze_message: "Reading invoice with AI..."
@@ -89,7 +89,7 @@ frappe.ui.form.on("Invoice OCR", {
             frm.add_custom_button("🧾 Create Purchase Invoice", async () => {
 
                 await frappe.call({
-                    method: "invoice_ocr.api.create_purchase_invoice",
+                    method: "zikpro_invoice_ocr.api.create_purchase_invoice",
                     args: { docname: frm.doc.name },
                     freeze: true,
                     freeze_message: "Creating Purchase Invoice..."
@@ -176,5 +176,4 @@ function start_polling(frm) {
 
     }, 3000);
 }
-
 

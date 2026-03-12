@@ -1,4 +1,4 @@
-from invoice_ocr.ai.ocr_nodes import call_deepinfra
+from zikpro_invoice_ocr.ai.ocr_nodes import call_deepinfra
 
 REFLECTION_PROMPT = """
 Review the extracted invoice JSON below.

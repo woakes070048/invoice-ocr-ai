@@ -1,5 +1,5 @@
-from invoice_ocr.ai.prompts import HEADER_PROMPT_TEMPLATE
-from invoice_ocr.ai.ocr_nodes import call_deepinfra
+from zikpro_invoice_ocr.ai.prompts import HEADER_PROMPT_TEMPLATE
+from zikpro_invoice_ocr.ai.ocr_nodes import call_deepinfra
 
 def extract_header_agent(state: dict):
 

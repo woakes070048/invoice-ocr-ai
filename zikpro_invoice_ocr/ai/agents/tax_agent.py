@@ -1,6 +1,6 @@
 import re
-from invoice_ocr.ai.prompts import TAX_PROMPT
-from invoice_ocr.ai.ocr_nodes import call_deepinfra
+from zikpro_invoice_ocr.ai.prompts import TAX_PROMPT
+from zikpro_invoice_ocr.ai.ocr_nodes import call_deepinfra
 
 
 def extract_tax_agent(state: dict):

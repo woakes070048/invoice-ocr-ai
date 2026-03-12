@@ -1,7 +1,7 @@
 import os
 import frappe
 from frappe.utils import getdate, today
-from invoice_ocr.vision.ocr_engine import run_vision_ocr
+from zikpro_invoice_ocr.vision.ocr_engine import run_vision_ocr
 
 
 # ============================================================
@@ -74,7 +74,7 @@ def enqueue_ocr(docname):
     frappe.db.commit()
 
     frappe.enqueue(
-        method="invoice_ocr.api.run_ocr",
+        method="zikpro_invoice_ocr.api.run_ocr",
         queue="long",
         timeout=600,
         job_name=f"OCR-{doc.name}",
@@ -91,14 +91,14 @@ def enqueue_ocr(docname):
 @frappe.whitelist()
 def run_ocr(docname):
 
-    from invoice_ocr.ai.agents.layout_agent import detect_layout
-    from invoice_ocr.ai.agents.context_builder import build_context
-    from invoice_ocr.ai.agents.header_agent import extract_header_agent
-    from invoice_ocr.ai.agents.items_agent import extract_items_agent
-    from invoice_ocr.ai.agents.tax_agent import extract_tax_agent
-    from invoice_ocr.intelligence.line_classifier import classify_lines
-    from invoice_ocr.intelligence.supplier_matcher import intelligent_supplier_match
-    from invoice_ocr.intelligence.financial_validator import validate_financials
+    from zikpro_invoice_ocr.ai.agents.layout_agent import detect_layout
+    from zikpro_invoice_ocr.ai.agents.context_builder import build_context
+    from zikpro_invoice_ocr.ai.agents.header_agent import extract_header_agent
+    from zikpro_invoice_ocr.ai.agents.items_agent import extract_items_agent
+    from zikpro_invoice_ocr.ai.agents.tax_agent import extract_tax_agent
+    from zikpro_invoice_ocr.intelligence.line_classifier import classify_lines
+    from zikpro_invoice_ocr.intelligence.supplier_matcher import intelligent_supplier_match
+    from zikpro_invoice_ocr.intelligence.financial_validator import validate_financials
 
     doc = frappe.get_doc("Invoice OCR", docname)
     file_url = _ensure_invoice_file(doc)
@@ -368,7 +368,7 @@ def create_purchase_invoice(docname):
 @frappe.whitelist()
 def test_deepinfra_connection():
 
-    from invoice_ocr.ai.ocr_nodes import call_deepinfra
+    from zikpro_ocr.ai.ocr_nodes import call_deepinfra
 
     # Simple test prompt
     response = call_deepinfra('Respond with JSON: {"status":"ok"}')

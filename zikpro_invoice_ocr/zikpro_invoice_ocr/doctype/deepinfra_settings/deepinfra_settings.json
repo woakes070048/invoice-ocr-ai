@@ -1,7 +1,7 @@
 {
   "doctype": "DocType",
   "name": "DeepInfra Settings",
-  "module": "Invoice OCR",
+  "module": "zikpro_invoice_ocr",
   "custom": 0,
   "is_submittable": 0,
   "track_changes": 1,

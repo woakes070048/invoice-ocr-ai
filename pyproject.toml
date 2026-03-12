@@ -1,5 +1,6 @@
+
 [project]
-name = "invoice_ocr"
+name = "zikpro_invoice_ocr"
 version = "0.0.1"
 description = "AI-based Invoice OCR to Purchase Invoice automation for ERPNext"
 authors = [
