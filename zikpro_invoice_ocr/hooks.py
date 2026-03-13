@@ -6,27 +6,26 @@ app_email = "info@zikpro.com"
 app_license = "MIT"
 
 # -------------------------------------------------
-# DocType JS (Cloud-safe)
+# Required Apps
+# -------------------------------------------------
+required_apps = ["erpnext"]
+
+# -------------------------------------------------
+# DocType JS
 # -------------------------------------------------
 doctype_js = {
     "Invoice OCR": "public/js/invoice_ocr.js"
 }
+
 # -------------------------------------------------
 # Optional: App visibility in Desk (disabled)
 # -------------------------------------------------
 # add_to_apps_screen = [
 #     {
 #         "name": "invoice_ocr",
-#         "logo": "/assets/invoice_ocr/logo.png",
+#         "logo": "/assets/zikpro_invoice_ocr/logo.png",
 #         "title": "OCR-AI",
 #         "route": "/invoice_ocr",
-#        #         "has_permission": "zikpro_invoice_ocr.api.permission.has_app_permission"
+#         "has_permission": "zikpro_invoice_ocr.api.permission.has_app_permission"
 #     }
 # ]
-
-# -------------------------------------------------
-# Notes
-# -------------------------------------------------
-# - No global JS/CSS injected (cloud safe)
-# - No core DocType overrides
-# - Only Invoice OCR DocType uses custom JS
